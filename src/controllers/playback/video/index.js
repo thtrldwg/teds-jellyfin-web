@@ -1776,6 +1776,7 @@ export default function (view) {
         destroySubtitleSync();
     });
     let lastPointerDown = 0;
+    let osdTimeout = null;
     /* eslint-disable-next-line compat/compat */
     dom.addEventListener(view, window.PointerEvent ? 'pointerdown' : 'click', function (e) {
         if (dom.parentWithClass(e.target, ['videoOsdBottom', 'upNextContainer'])) {
@@ -1786,11 +1787,33 @@ export default function (view) {
         const pointerType = e.pointerType || (layoutManager.mobile ? 'touch' : 'mouse');
         const now = new Date().getTime();
 
+        // Divides viewport into 2:1:2 areas for touch controls
+        const viewWidth = dom.getWindowSize().innerWidth;
+        const areaWidth = viewWidth / 5;
+        const middleAreaStart = areaWidth * 2;
+        const middleAreaEnd = middleAreaStart + areaWidth;
+
+        const pointerX = e.clientX;
+
+        console.log(window.innerWidth);
+
         switch (pointerType) {
             case 'touch':
+                clearTimeout(osdTimeout);
                 if (now - lastPointerDown > 300) {
                     lastPointerDown = now;
-                    toggleOsd();
+                    // Set a timeout to toggle OSD after 300ms if not interrupted by another touch input.
+                    osdTimeout = setTimeout(toggleOsd, 300);
+                } else {
+                    lastPointerDown = now;
+                    // Handle playback control based on touch position
+                    if (pointerX < middleAreaStart) {
+                        playbackManager.rewind(currentPlayer);
+                    } else if (pointerX > middleAreaEnd) {
+                        playbackManager.fastForward(currentPlayer);
+                    } else {
+                        playbackManager.playPause(currentPlayer);
+                    }
                 }
 
                 break;
@@ -1820,7 +1843,7 @@ export default function (view) {
     });
 
     dom.addEventListener(view, 'dblclick', (e) => {
-        if (e.target !== view) return;
+        if (e.target !== view || layoutManager.mobile) return;
         playbackManager.toggleFullscreen(currentPlayer);
     });
 
